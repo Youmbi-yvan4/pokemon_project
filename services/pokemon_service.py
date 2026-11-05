@@ -1,5 +1,7 @@
 import requests
 
+from models.pokemon import Pokemon
+
 
 BASE_URL = "https://pokeapi.co/api/v2/pokemon"
 
@@ -26,7 +28,6 @@ def extract_types(data):
 
 
 def get_pokemon(identifier):
-
     identifier = str(identifier).strip().lower()
 
     url = f"{BASE_URL}/{identifier}"
@@ -40,14 +41,14 @@ def get_pokemon(identifier):
 
     stats = extract_stats(data)
 
-    return {
-        "id": data["id"],
-        "name": data["name"],
-        "hp": stats["hp"],
-        "attack": stats["attack"],
-        "defense": stats["defense"],
-        "special_attack": stats["special-attack"],
-        "special_defense": stats["special-defense"],
-        "speed": stats["speed"],
-        "types": extract_types(data)
-    }
+    return Pokemon(
+        id=data["id"],
+        name=data["name"],
+        hp=stats["hp"],
+        attack=stats["attack"],
+        defense=stats["defense"],
+        special_attack=stats["special-attack"],
+        special_defense=stats["special-defense"],
+        speed=stats["speed"],
+        types=extract_types(data)
+    )
