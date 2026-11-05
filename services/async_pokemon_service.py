@@ -1,7 +1,15 @@
 import asyncio
 
-from services.exceptions import ResourceNotFoundError
-from services.pokemon_service import build_pokemon
+from services.cache_service import (
+    api_cache,
+    build_pokemon_cache_key,
+)
+from services.exceptions import (
+    ResourceNotFoundError,
+)
+from services.pokemon_service import (
+    build_pokemon,
+)
 
 
 POKEMON_BASE_URL = (
@@ -13,6 +21,7 @@ async def async_get_pokemon(
     identifier,
     client,
     api_client,
+    use_cache=True,
 ):
     normalized_identifier = str(
         identifier
@@ -20,6 +29,18 @@ async def async_get_pokemon(
 
     if not normalized_identifier:
         return None
+
+    cache_key = build_pokemon_cache_key(
+        normalized_identifier
+    )
+
+    if use_cache:
+        cache_hit, cached_pokemon = (
+            api_cache.get(cache_key)
+        )
+
+        if cache_hit:
+            return cached_pokemon
 
     url = (
         f"{POKEMON_BASE_URL}/"
@@ -35,12 +56,47 @@ async def async_get_pokemon(
     except ResourceNotFoundError:
         return None
 
-    return build_pokemon(data)
+    pokemon = build_pokemon(
+        data
+    )
+
+    if use_cache:
+        api_cache.set(
+            cache_key,
+            pokemon,
+        )
+
+        id_cache_key = (
+            build_pokemon_cache_key(
+                pokemon.id
+            )
+        )
+
+        if id_cache_key != cache_key:
+            api_cache.set(
+                id_cache_key,
+                pokemon,
+            )
+
+        name_cache_key = (
+            build_pokemon_cache_key(
+                pokemon.name
+            )
+        )
+
+        if name_cache_key != cache_key:
+            api_cache.set(
+                name_cache_key,
+                pokemon,
+            )
+
+    return pokemon
 
 
 async def async_get_many_pokemon(
     identifiers,
     api_client,
+    use_cache=True,
 ):
     if not identifiers:
         return {
@@ -49,12 +105,16 @@ async def async_get_many_pokemon(
             "errors": {},
         }
 
-    async with api_client.create_client() as client:
+    async with (
+        api_client.create_client()
+        as client
+    ):
         tasks = [
             async_get_pokemon(
                 identifier=identifier,
                 client=client,
                 api_client=api_client,
+                use_cache=use_cache,
             )
             for identifier in identifiers
         ]
@@ -72,16 +132,21 @@ async def async_get_many_pokemon(
         identifiers,
         results,
     ):
-        identifier_string = str(identifier)
+        identifier_string = str(
+            identifier
+        )
 
-        if isinstance(result, Exception):
+        if isinstance(
+            result,
+            Exception,
+        ):
             failed_identifiers.append(
                 identifier_string
             )
 
-            errors[identifier_string] = str(
-                result
-            )
+            errors[
+                identifier_string
+            ] = str(result)
 
             continue
 
@@ -90,13 +155,17 @@ async def async_get_many_pokemon(
                 identifier_string
             )
 
-            errors[identifier_string] = (
+            errors[
+                identifier_string
+            ] = (
                 "Pokémon introuvable."
             )
 
             continue
 
-        pokemon_list.append(result)
+        pokemon_list.append(
+            result
+        )
 
     return {
         "pokemon": pokemon_list,

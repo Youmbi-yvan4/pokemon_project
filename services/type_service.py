@@ -1,11 +1,22 @@
 import time
 
 from services.api_client import APIClient
-from services.exceptions import ResourceNotFoundError
-from services.pokemon_service import get_pokemon
+from services.cache_service import (
+    api_cache,
+    build_type_cache_key,
+)
+from services.exceptions import (
+    ResourceNotFoundError,
+)
+from services.pokemon_service import (
+    get_pokemon,
+)
 
 
-TYPE_BASE_URL = "https://pokeapi.co/api/v2/type"
+TYPE_BASE_URL = (
+    "https://pokeapi.co/api/v2/type"
+)
+
 
 api_client = APIClient(
     timeout=10,
@@ -14,18 +25,10 @@ api_client = APIClient(
 )
 
 
-def get_type_data(type_identifier):
-    """
-    Retrieve the data for a Pokémon type.
-
-    Examples:
-        get_type_data("fire")
-        get_type_data("dragon")
-        get_type_data(10)
-
-    Returns None if the type does not exist.
-    """
-
+def get_type_data(
+    type_identifier,
+    use_cache=True,
+):
     normalized_type = str(
         type_identifier
     ).strip().lower()
@@ -33,31 +36,60 @@ def get_type_data(type_identifier):
     if not normalized_type:
         return None
 
-    url = f"{TYPE_BASE_URL}/{normalized_type}"
+    cache_key = build_type_cache_key(
+        normalized_type
+    )
+
+    if use_cache:
+        cache_hit, cached_data = (
+            api_cache.get(
+                cache_key
+            )
+        )
+
+        if cache_hit:
+            return cached_data
+
+    url = (
+        f"{TYPE_BASE_URL}/"
+        f"{normalized_type}"
+    )
 
     try:
-        return api_client.get_json(url)
+        data = api_client.get_json(
+            url
+        )
 
     except ResourceNotFoundError:
         return None
 
+    if use_cache:
+        api_cache.set(
+            cache_key,
+            data,
+        )
 
-def extract_pokemon_names(type_data):
-    """
-    Extract the names of the Pokémon associated
-    with a type.
-    """
+    return data
 
+
+def extract_pokemon_names(
+    type_data,
+):
     pokemon_names = []
 
-    for item in type_data.get("pokemon", []):
+    for item in type_data.get(
+        "pokemon",
+        [],
+    ):
         pokemon_data = item.get(
             "pokemon",
             {},
         )
 
-        pokemon_name = pokemon_data.get(
-            "name"
+        pokemon_name = (
+            pokemon_data.get(
+                "name"
+            )
         )
 
         if pokemon_name:
@@ -68,16 +100,13 @@ def extract_pokemon_names(type_data):
     return pokemon_names
 
 
-def get_pokemon_names_by_type(type_identifier):
-    """
-    Return the names of all Pokémon associated
-    with the requested type.
-
-    Returns None when the type does not exist.
-    """
-
+def get_pokemon_names_by_type(
+    type_identifier,
+    use_cache=True,
+):
     type_data = get_type_data(
-        type_identifier
+        type_identifier,
+        use_cache=use_cache,
     )
 
     if type_data is None:
@@ -88,15 +117,10 @@ def get_pokemon_names_by_type(type_identifier):
     )
 
 
-def calculate_average_hp(pokemon_names):
-    """
-    Retrieve each Pokémon sequentially and
-    calculate their average HP.
-
-    Only successfully retrieved Pokémon are used
-    to calculate the average.
-    """
-
+def calculate_average_hp(
+    pokemon_names,
+    use_cache=True,
+):
     total_hp = 0
     successful_count = 0
     failed_names = []
@@ -114,12 +138,16 @@ def calculate_average_hp(pokemon_names):
             f"Récupération de {name}"
         )
 
-        pokemon = get_pokemon(name)
+        pokemon = get_pokemon(
+            name,
+            use_cache=use_cache,
+        )
 
         if pokemon is None:
             failed_names.append(
                 name
             )
+
             continue
 
         total_hp += pokemon.hp
@@ -136,7 +164,9 @@ def calculate_average_hp(pokemon_names):
 
     return {
         "average_hp": average_hp,
-        "successful_count": successful_count,
+        "successful_count": (
+            successful_count
+        ),
         "failed_count": len(
             failed_names
         ),
@@ -147,41 +177,8 @@ def calculate_average_hp(pokemon_names):
 def calculate_type_statistics(
     type_identifier,
     limit=None,
+    use_cache=True,
 ):
-    """
-    Calculate statistics for Pokémon belonging
-    to a given type.
-
-    Parameters
-    ----------
-    type_identifier:
-        Type name or ID, for example "fire",
-        "dragon" or 10.
-
-    limit:
-        Maximum number of Pokémon to analyse.
-
-        None:
-            Analyse every Pokémon returned
-            for the requested type.
-
-        Positive integer:
-            Analyse only the first N Pokémon.
-
-    Examples
-    --------
-    Analyse every Fire Pokémon:
-
-        calculate_type_statistics("fire")
-
-    Analyse only the first 10:
-
-        calculate_type_statistics(
-            "fire",
-            limit=10,
-        )
-    """
-
     start_time = time.perf_counter()
 
     normalized_type = str(
@@ -191,9 +188,14 @@ def calculate_type_statistics(
     if not normalized_type:
         return None
 
+    cache_before = (
+        api_cache.get_statistics()
+    )
+
     pokemon_names = (
         get_pokemon_names_by_type(
-            normalized_type
+            normalized_type,
+            use_cache=use_cache,
         )
     )
 
@@ -205,15 +207,19 @@ def calculate_type_statistics(
     )
 
     if limit is not None:
-        if not isinstance(limit, int):
+        if not isinstance(
+            limit,
+            int,
+        ):
             raise ValueError(
-                "La limite doit être un entier."
+                "La limite doit être "
+                "un entier."
             )
 
         if limit <= 0:
             raise ValueError(
-                "La limite doit être supérieure "
-                "à zéro."
+                "La limite doit être "
+                "supérieure à zéro."
             )
 
         selected_names = (
@@ -221,7 +227,9 @@ def calculate_type_statistics(
         )
 
     else:
-        selected_names = pokemon_names
+        selected_names = (
+            pokemon_names
+        )
 
     analysed_count = len(
         selected_names
@@ -229,7 +237,8 @@ def calculate_type_statistics(
 
     hp_statistics = (
         calculate_average_hp(
-            selected_names
+            selected_names,
+            use_cache=use_cache,
         )
     )
 
@@ -238,21 +247,51 @@ def calculate_type_statistics(
         - start_time
     )
 
+    cache_after = (
+        api_cache.get_statistics()
+    )
+
+    cache_hits = (
+        cache_after["hits"]
+        - cache_before["hits"]
+    )
+
+    cache_misses = (
+        cache_after["misses"]
+        - cache_before["misses"]
+    )
+
     return {
         "type": normalized_type,
-        "available_count": available_count,
-        "analysed_count": analysed_count,
-        "average_hp": hp_statistics[
-            "average_hp"
-        ],
-        "successful_count": hp_statistics[
-            "successful_count"
-        ],
-        "failed_count": hp_statistics[
-            "failed_count"
-        ],
-        "failed_names": hp_statistics[
-            "failed_names"
-        ],
+        "mode": "Séquentiel",
+        "available_count": (
+            available_count
+        ),
+        "analysed_count": (
+            analysed_count
+        ),
+        "average_hp": (
+            hp_statistics[
+                "average_hp"
+            ]
+        ),
+        "successful_count": (
+            hp_statistics[
+                "successful_count"
+            ]
+        ),
+        "failed_count": (
+            hp_statistics[
+                "failed_count"
+            ]
+        ),
+        "failed_names": (
+            hp_statistics[
+                "failed_names"
+            ]
+        ),
         "duration_seconds": duration,
+        "cache_enabled": use_cache,
+        "cache_hits": cache_hits,
+        "cache_misses": cache_misses,
     }

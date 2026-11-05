@@ -1,6 +1,12 @@
 from models.pokemon import Pokemon
 from services.api_client import APIClient
-from services.exceptions import ResourceNotFoundError
+from services.cache_service import (
+    api_cache,
+    build_pokemon_cache_key,
+)
+from services.exceptions import (
+    ResourceNotFoundError,
+)
 
 
 BASE_URL = "https://pokeapi.co/api/v2/pokemon"
@@ -30,7 +36,10 @@ def extract_types(data):
 
     for item in data.get("types", []):
         type_name = item["type"]["name"]
-        types.append(type_name)
+
+        types.append(
+            type_name
+        )
 
     return types
 
@@ -72,7 +81,10 @@ def build_pokemon(data):
     )
 
 
-def get_pokemon(identifier):
+def get_pokemon(
+    identifier,
+    use_cache=True,
+):
     normalized_identifier = str(
         identifier
     ).strip().lower()
@@ -80,12 +92,62 @@ def get_pokemon(identifier):
     if not normalized_identifier:
         return None
 
-    url = f"{BASE_URL}/{normalized_identifier}"
+    cache_key = build_pokemon_cache_key(
+        normalized_identifier
+    )
+
+    if use_cache:
+        cache_hit, cached_pokemon = (
+            api_cache.get(cache_key)
+        )
+
+        if cache_hit:
+            return cached_pokemon
+
+    url = (
+        f"{BASE_URL}/"
+        f"{normalized_identifier}"
+    )
 
     try:
-        data = api_client.get_json(url)
+        data = api_client.get_json(
+            url
+        )
 
     except ResourceNotFoundError:
         return None
 
-    return build_pokemon(data)
+    pokemon = build_pokemon(
+        data
+    )
+
+    if use_cache:
+        api_cache.set(
+            cache_key,
+            pokemon,
+        )
+
+        # On crée également une entrée par ID.
+        # Cela peut permettre à un futur appel
+        # utilisant cet ID de profiter du cache.
+        id_cache_key = build_pokemon_cache_key(
+            pokemon.id
+        )
+
+        if id_cache_key != cache_key:
+            api_cache.set(
+                id_cache_key,
+                pokemon,
+            )
+
+        name_cache_key = build_pokemon_cache_key(
+            pokemon.name
+        )
+
+        if name_cache_key != cache_key:
+            api_cache.set(
+                name_cache_key,
+                pokemon,
+            )
+
+    return pokemon
