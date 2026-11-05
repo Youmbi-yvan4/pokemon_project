@@ -1,9 +1,15 @@
-import requests
-
 from models.pokemon import Pokemon
+from services.api_client import APIClient
+from services.exceptions import ResourceNotFoundError
 
 
 BASE_URL = "https://pokeapi.co/api/v2/pokemon"
+
+api_client = APIClient(
+    timeout=10,
+    max_retries=3,
+    backoff_factor=1,
+)
 
 
 def extract_stats(data):
@@ -30,14 +36,15 @@ def extract_types(data):
 def get_pokemon(identifier):
     identifier = str(identifier).strip().lower()
 
-    url = f"{BASE_URL}/{identifier}"
-
-    response = requests.get(url, timeout=10)
-
-    if response.status_code != 200:
+    if not identifier:
         return None
 
-    data = response.json()
+    url = f"{BASE_URL}/{identifier}"
+
+    try:
+        data = api_client.get_json(url)
+    except ResourceNotFoundError:
+        return None
 
     stats = extract_stats(data)
 
@@ -50,5 +57,5 @@ def get_pokemon(identifier):
         special_attack=stats["special-attack"],
         special_defense=stats["special-defense"],
         speed=stats["speed"],
-        types=extract_types(data)
+        types=extract_types(data),
     )
