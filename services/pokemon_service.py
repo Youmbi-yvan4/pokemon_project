@@ -5,6 +5,7 @@ from services.exceptions import ResourceNotFoundError
 
 BASE_URL = "https://pokeapi.co/api/v2/pokemon"
 
+
 api_client = APIClient(
     timeout=10,
     max_retries=3,
@@ -15,7 +16,7 @@ api_client = APIClient(
 def extract_stats(data):
     stats = {}
 
-    for item in data["stats"]:
+    for item in data.get("stats", []):
         stat_name = item["stat"]["name"]
         stat_value = item["base_stat"]
 
@@ -27,26 +28,36 @@ def extract_stats(data):
 def extract_types(data):
     types = []
 
-    for item in data["types"]:
-        types.append(item["type"]["name"])
+    for item in data.get("types", []):
+        type_name = item["type"]["name"]
+        types.append(type_name)
 
     return types
 
 
-def get_pokemon(identifier):
-    identifier = str(identifier).strip().lower()
-
-    if not identifier:
-        return None
-
-    url = f"{BASE_URL}/{identifier}"
-
-    try:
-        data = api_client.get_json(url)
-    except ResourceNotFoundError:
-        return None
-
+def build_pokemon(data):
     stats = extract_stats(data)
+
+    required_stats = [
+        "hp",
+        "attack",
+        "defense",
+        "special-attack",
+        "special-defense",
+        "speed",
+    ]
+
+    missing_stats = [
+        stat_name
+        for stat_name in required_stats
+        if stat_name not in stats
+    ]
+
+    if missing_stats:
+        raise ValueError(
+            "Statistiques absentes dans la réponse API : "
+            + ", ".join(missing_stats)
+        )
 
     return Pokemon(
         id=data["id"],
@@ -59,3 +70,22 @@ def get_pokemon(identifier):
         speed=stats["speed"],
         types=extract_types(data),
     )
+
+
+def get_pokemon(identifier):
+    normalized_identifier = str(
+        identifier
+    ).strip().lower()
+
+    if not normalized_identifier:
+        return None
+
+    url = f"{BASE_URL}/{normalized_identifier}"
+
+    try:
+        data = api_client.get_json(url)
+
+    except ResourceNotFoundError:
+        return None
+
+    return build_pokemon(data)

@@ -1,10 +1,23 @@
+import asyncio
+
 import streamlit as st
 
-from services.battle_service import simulate_battle
-from services.comparison_service import compare_pokemon
+from services.async_type_service import (
+    calculate_type_statistics_async,
+)
+from services.battle_service import (
+    simulate_battle,
+)
+from services.comparison_service import (
+    compare_pokemon,
+)
 from services.exceptions import APIError
-from services.pokemon_service import get_pokemon
-from services.type_service import calculate_type_statistics
+from services.pokemon_service import (
+    get_pokemon,
+)
+from services.type_service import (
+    calculate_type_statistics,
+)
 
 
 # ============================================================
@@ -20,7 +33,7 @@ st.set_page_config(
 st.title("⚡ Pokémon Analyzer")
 
 st.write(
-    "Explorez les statistiques des Pokémon, comparez-les, "
+    "Recherchez des Pokémon, comparez leurs statistiques, "
     "analysez leurs types et simulez des combats."
 )
 
@@ -46,7 +59,6 @@ tab_search, tab_compare, tab_type, tab_battle = st.tabs(
 # ============================================================
 
 with tab_search:
-
     st.header("🔎 Rechercher un Pokémon")
 
     st.write(
@@ -66,30 +78,30 @@ with tab_search:
     )
 
     if search_button:
-
         if not identifier.strip():
-
             st.warning(
                 "Veuillez saisir un nom ou un identifiant."
             )
 
         else:
-
             try:
-
                 with st.spinner(
                     "Récupération du Pokémon...",
                     show_time=True,
                 ):
-                    pokemon = get_pokemon(identifier)
+                    pokemon = get_pokemon(
+                        identifier
+                    )
 
                 if pokemon is None:
-
-                    st.error("Pokémon introuvable.")
+                    st.error(
+                        "Pokémon introuvable."
+                    )
 
                 else:
-
-                    st.success("Pokémon trouvé.")
+                    st.success(
+                        "Pokémon trouvé."
+                    )
 
                     st.subheader(
                         pokemon.name.capitalize()
@@ -104,13 +116,13 @@ with tab_search:
                         "**Type(s) :**",
                         ", ".join(
                             type_name.capitalize()
-                            for type_name in pokemon.types
+                            for type_name
+                            in pokemon.types
                         ),
                     )
 
                     st.divider()
 
-                    # Première ligne
                     col1, col2, col3 = st.columns(3)
 
                     with col1:
@@ -131,7 +143,6 @@ with tab_search:
                             pokemon.defense,
                         )
 
-                    # Deuxième ligne
                     col4, col5, col6 = st.columns(3)
 
                     with col4:
@@ -153,15 +164,14 @@ with tab_search:
                         )
 
             except APIError as error:
-
                 st.error(
                     f"Erreur API : {error}"
                 )
 
             except Exception as error:
-
                 st.error(
-                    f"Une erreur inattendue est survenue : {error}"
+                    "Une erreur inattendue est survenue : "
+                    f"{error}"
                 )
 
 
@@ -170,18 +180,16 @@ with tab_search:
 # ============================================================
 
 with tab_compare:
-
     st.header("⚖️ Comparer deux Pokémon")
 
     st.write(
-        "Comparez les points de vie et l'attaque "
+        "Comparez les HP et l'attaque "
         "de deux Pokémon."
     )
 
     col1, col2 = st.columns(2)
 
     with col1:
-
         first_pokemon = st.text_input(
             "Premier Pokémon",
             placeholder="Exemple : pikachu",
@@ -189,7 +197,6 @@ with tab_compare:
         )
 
     with col2:
-
         second_pokemon = st.text_input(
             "Deuxième Pokémon",
             placeholder="Exemple : charizard",
@@ -202,40 +209,38 @@ with tab_compare:
     )
 
     if compare_button:
-
         if (
             not first_pokemon.strip()
             or not second_pokemon.strip()
         ):
-
             st.warning(
                 "Veuillez saisir les deux Pokémon."
             )
 
         else:
-
             try:
-
                 with st.spinner(
                     "Comparaison en cours...",
                     show_time=True,
                 ):
-
                     result = compare_pokemon(
                         first_pokemon,
                         second_pokemon,
                     )
 
                 if result is None:
-
                     st.error(
                         "Un des Pokémon est introuvable."
                     )
 
                 else:
+                    pokemon1 = result[
+                        "pokemon_1"
+                    ]
 
-                    pokemon1 = result["pokemon_1"]
-                    pokemon2 = result["pokemon_2"]
+                    pokemon2 = result[
+                        "pokemon_2"
+                    ]
 
                     st.success(
                         "Comparaison terminée."
@@ -245,9 +250,7 @@ with tab_compare:
 
                     col1, col2 = st.columns(2)
 
-                    # Premier Pokémon
                     with col1:
-
                         st.subheader(
                             pokemon1.name.capitalize()
                         )
@@ -256,7 +259,8 @@ with tab_compare:
                             "**Type(s) :**",
                             ", ".join(
                                 type_name.capitalize()
-                                for type_name in pokemon1.types
+                                for type_name
+                                in pokemon1.types
                             ),
                         )
 
@@ -275,9 +279,7 @@ with tab_compare:
                             pokemon1.strength_score(),
                         )
 
-                    # Deuxième Pokémon
                     with col2:
-
                         st.subheader(
                             pokemon2.name.capitalize()
                         )
@@ -286,7 +288,8 @@ with tab_compare:
                             "**Type(s) :**",
                             ", ".join(
                                 type_name.capitalize()
-                                for type_name in pokemon2.types
+                                for type_name
+                                in pokemon2.types
                             ),
                         )
 
@@ -307,14 +310,11 @@ with tab_compare:
 
                     st.divider()
 
-                    st.subheader(
-                        "Résultat de la comparaison"
+                    result_col1, result_col2 = (
+                        st.columns(2)
                     )
 
-                    result_col1, result_col2 = st.columns(2)
-
                     with result_col1:
-
                         st.write(
                             "**Meilleurs HP :**",
                             result["best_hp"],
@@ -326,7 +326,6 @@ with tab_compare:
                         )
 
                     with result_col2:
-
                         st.write(
                             "**Meilleure attaque :**",
                             result["best_attack"],
@@ -334,7 +333,9 @@ with tab_compare:
 
                         st.write(
                             "**Différence d'attaque :**",
-                            result["attack_difference"],
+                            result[
+                                "attack_difference"
+                            ],
                         )
 
                     st.info(
@@ -345,20 +346,18 @@ with tab_compare:
 
                     st.caption(
                         "Le score HP + attaque est une règle "
-                        "définie pour ce projet et non une "
-                        "formule officielle des jeux Pokémon."
+                        "définie pour ce mini-projet."
                     )
 
             except APIError as error:
-
                 st.error(
                     f"Erreur API : {error}"
                 )
 
             except Exception as error:
-
                 st.error(
-                    f"Une erreur inattendue est survenue : {error}"
+                    "Une erreur inattendue est survenue : "
+                    f"{error}"
                 )
 
 
@@ -367,12 +366,18 @@ with tab_compare:
 # ============================================================
 
 with tab_type:
-
-    st.header("📊 Analyse des Pokémon par type")
+    st.header(
+        "📊 Analyse des Pokémon par type"
+    )
 
     st.write(
-        "Sélectionnez un type pour connaître le nombre "
-        "de Pokémon disponibles et calculer leur moyenne de HP."
+        "Calculez le nombre de Pokémon d'un type "
+        "et leur moyenne de HP."
+    )
+
+    st.write(
+        "Vous pouvez également comparer l'exécution "
+        "séquentielle à l'exécution asynchrone."
     )
 
     type_name = st.text_input(
@@ -381,18 +386,79 @@ with tab_type:
         key="type_name",
     )
 
-    limit = st.number_input(
-        "Nombre de Pokémon à analyser",
+    st.subheader(
+        "Configuration de l'analyse"
+    )
+
+    use_limit = st.checkbox(
+        "Limiter le nombre de Pokémon analysés",
+        value=True,
+        key="use_type_limit",
+    )
+
+    limit_value = st.number_input(
+        "Nombre maximal de Pokémon à analyser",
         min_value=1,
         value=10,
         step=1,
         key="type_limit",
+        disabled=not use_limit,
     )
 
-    st.caption(
-        "Nous limitons volontairement le nombre pendant "
-        "cette phase car les appels API sont encore séquentiels."
+    if use_limit:
+        selected_limit = int(
+            limit_value
+        )
+
+        st.caption(
+            f"L'analyse utilisera au maximum "
+            f"{selected_limit} Pokémon."
+        )
+
+    else:
+        selected_limit = None
+
+        st.caption(
+            "Aucune limite : tous les Pokémon "
+            "du type seront analysés."
+        )
+
+    st.divider()
+
+    execution_mode = st.radio(
+        "Mode d'exécution",
+        options=[
+            "Séquentiel",
+            "Asynchrone",
+        ],
+        horizontal=True,
+        key="type_execution_mode",
     )
+
+    concurrency_limit = st.slider(
+        "Nombre maximal de requêtes simultanées",
+        min_value=1,
+        max_value=20,
+        value=5,
+        step=1,
+        key="concurrency_limit",
+        disabled=(
+            execution_mode == "Séquentiel"
+        ),
+    )
+
+    if execution_mode == "Séquentiel":
+        st.info(
+            "Mode séquentiel : les Pokémon sont "
+            "récupérés les uns après les autres."
+        )
+
+    else:
+        st.info(
+            "Mode asynchrone : plusieurs appels HTTP "
+            "peuvent être exécutés simultanément, dans "
+            "la limite de concurrence sélectionnée."
+        )
 
     analyse_button = st.button(
         "Analyser",
@@ -400,67 +466,115 @@ with tab_type:
     )
 
     if analyse_button:
-
         if not type_name.strip():
-
             st.warning(
                 "Veuillez saisir un type."
             )
 
         else:
-
             try:
-
                 with st.spinner(
                     "Analyse du type en cours...",
                     show_time=True,
                 ):
+                    if (
+                        execution_mode
+                        == "Séquentiel"
+                    ):
+                        result = (
+                            calculate_type_statistics(
+                                type_identifier=type_name,
+                                limit=selected_limit,
+                            )
+                        )
 
-                    result = calculate_type_statistics(
-                        type_name,
-                        limit=int(limit),
-                    )
+                    else:
+                        result = asyncio.run(
+                            calculate_type_statistics_async(
+                                type_identifier=type_name,
+                                limit=selected_limit,
+                                concurrency_limit=int(
+                                    concurrency_limit
+                                ),
+                            )
+                        )
 
                 if result is None:
-
                     st.error(
                         "Type Pokémon introuvable."
                     )
 
                 else:
-
                     st.success(
                         "Analyse terminée."
                     )
 
                     st.subheader(
-                        f"Type : {result['type'].capitalize()}"
+                        "Résultats"
                     )
+
+                    st.write(
+                        "**Type :**",
+                        result[
+                            "type"
+                        ].capitalize(),
+                    )
+
+                    st.write(
+                        "**Mode d'exécution :**",
+                        execution_mode,
+                    )
+
+                    if (
+                        execution_mode
+                        == "Asynchrone"
+                    ):
+                        st.write(
+                            "**Limite de concurrence :**",
+                            result[
+                                "concurrency_limit"
+                            ],
+                        )
+
+                    if selected_limit is None:
+                        st.write(
+                            "**Limite d'analyse :**",
+                            "Aucune",
+                        )
+
+                    else:
+                        st.write(
+                            "**Limite d'analyse :**",
+                            selected_limit,
+                        )
 
                     st.divider()
 
                     col1, col2, col3 = st.columns(3)
 
                     with col1:
-
                         st.metric(
                             "Pokémon disponibles",
-                            result["available_count"],
+                            result[
+                                "available_count"
+                            ],
                         )
 
                     with col2:
-
                         st.metric(
                             "Pokémon analysés",
-                            result["analysed_count"],
+                            result[
+                                "analysed_count"
+                            ],
                         )
 
                     with col3:
-
                         st.metric(
                             "HP moyen",
                             round(
-                                result["average_hp"],
+                                result[
+                                    "average_hp"
+                                ],
                                 2,
                             ),
                         )
@@ -470,51 +584,72 @@ with tab_type:
                     col4, col5, col6 = st.columns(3)
 
                     with col4:
-
                         st.metric(
                             "Récupérations réussies",
-                            result["successful_count"],
+                            result[
+                                "successful_count"
+                            ],
                         )
 
                     with col5:
-
                         st.metric(
                             "Échecs",
-                            result["failed_count"],
+                            result[
+                                "failed_count"
+                            ],
                         )
 
                     with col6:
-
                         st.metric(
                             "Temps d'exécution",
-                            f"{result['duration_seconds']:.2f} s",
+                            (
+                                f"{result['duration_seconds']:.2f} s"
+                            ),
                         )
 
                     if result["failed_names"]:
+                        st.warning(
+                            "Certains Pokémon n'ont pas "
+                            "pu être récupérés."
+                        )
 
                         with st.expander(
-                            "Afficher les Pokémon non récupérés"
+                            "Afficher les Pokémon "
+                            "non récupérés"
                         ):
-
-                            for name in result["failed_names"]:
+                            for name in result[
+                                "failed_names"
+                            ]:
                                 st.write(
                                     f"- {name}"
                                 )
 
-            except ValueError as error:
+                                if "errors" in result:
+                                    error_message = (
+                                        result[
+                                            "errors"
+                                        ].get(name)
+                                    )
 
-                st.warning(str(error))
+                                    if error_message:
+                                        st.caption(
+                                            error_message
+                                        )
+
+            except ValueError as error:
+                st.warning(
+                    str(error)
+                )
 
             except APIError as error:
-
                 st.error(
                     f"Erreur API : {error}"
                 )
 
             except Exception as error:
-
                 st.error(
-                    f"Une erreur inattendue est survenue : {error}"
+                    "Une erreur inattendue est survenue : "
+                    f"{error}"
                 )
 
 
@@ -523,22 +658,23 @@ with tab_type:
 # ============================================================
 
 with tab_battle:
-
-    st.header("⚔️ Combat Pokémon")
+    st.header(
+        "⚔️ Combat Pokémon"
+    )
 
     st.write(
-        "Simulez un combat de cinq tours entre deux Pokémon."
+        "Simulez un combat de cinq tours "
+        "entre deux Pokémon."
     )
 
     st.caption(
-        "Chaque Pokémon inflige des dégâts calculés avec "
-        "son attaque et la défense de son adversaire."
+        "Le Pokémon qui inflige le plus de dégâts "
+        "cumulés après cinq tours gagne."
     )
 
     col1, col2 = st.columns(2)
 
     with col1:
-
         fighter1 = st.text_input(
             "Pokémon 1",
             placeholder="Exemple : pikachu",
@@ -546,7 +682,6 @@ with tab_battle:
         )
 
     with col2:
-
         fighter2 = st.text_input(
             "Pokémon 2",
             placeholder="Exemple : charizard",
@@ -559,25 +694,20 @@ with tab_battle:
     )
 
     if battle_button:
-
         if (
             not fighter1.strip()
             or not fighter2.strip()
         ):
-
             st.warning(
                 "Veuillez saisir deux Pokémon."
             )
 
         else:
-
             try:
-
                 with st.spinner(
                     "Préparation du combat...",
                     show_time=True,
                 ):
-
                     result = simulate_battle(
                         fighter1,
                         fighter2,
@@ -585,15 +715,18 @@ with tab_battle:
                     )
 
                 if result is None:
-
                     st.error(
                         "Un des Pokémon est introuvable."
                     )
 
                 else:
+                    pokemon1 = result[
+                        "pokemon_1"
+                    ]
 
-                    pokemon1 = result["pokemon_1"]
-                    pokemon2 = result["pokemon_2"]
+                    pokemon2 = result[
+                        "pokemon_2"
+                    ]
 
                     st.subheader(
                         f"{pokemon1.name.capitalize()} "
@@ -603,13 +736,11 @@ with tab_battle:
 
                     st.divider()
 
-                    # Affichage des caractéristiques
                     col1, col2 = st.columns(2)
 
                     with col1:
-
-                        st.write(
-                            f"### {pokemon1.name.capitalize()}"
+                        st.subheader(
+                            pokemon1.name.capitalize()
                         )
 
                         st.write(
@@ -617,17 +748,18 @@ with tab_battle:
                         )
 
                         st.write(
-                            f"⚔️ Attaque : {pokemon1.attack}"
+                            "⚔️ Attaque : "
+                            f"{pokemon1.attack}"
                         )
 
                         st.write(
-                            f"🛡️ Défense : {pokemon1.defense}"
+                            "🛡️ Défense : "
+                            f"{pokemon1.defense}"
                         )
 
                     with col2:
-
-                        st.write(
-                            f"### {pokemon2.name.capitalize()}"
+                        st.subheader(
+                            pokemon2.name.capitalize()
                         )
 
                         st.write(
@@ -635,11 +767,13 @@ with tab_battle:
                         )
 
                         st.write(
-                            f"⚔️ Attaque : {pokemon2.attack}"
+                            "⚔️ Attaque : "
+                            f"{pokemon2.attack}"
                         )
 
                         st.write(
-                            f"🛡️ Défense : {pokemon2.defense}"
+                            "🛡️ Défense : "
+                            f"{pokemon2.defense}"
                         )
 
                     st.divider()
@@ -648,11 +782,12 @@ with tab_battle:
                         "Déroulement du combat"
                     )
 
-                    for round_result in result["rounds"]:
-
-                        round_number = round_result[
-                            "round"
-                        ]
+                    for round_result in result[
+                        "rounds"
+                    ]:
+                        round_number = (
+                            round_result["round"]
+                        )
 
                         damage1 = round_result[
                             "pokemon1_damage"
@@ -666,9 +801,7 @@ with tab_battle:
                             f"Tour {round_number}",
                             expanded=True,
                         ):
-
                             st.write(
-                                f"⚡ "
                                 f"{pokemon1.name.capitalize()} "
                                 f"inflige **{damage1} dégâts** "
                                 f"à "
@@ -676,7 +809,6 @@ with tab_battle:
                             )
 
                             st.write(
-                                f"⚡ "
                                 f"{pokemon2.name.capitalize()} "
                                 f"inflige **{damage2} dégâts** "
                                 f"à "
@@ -692,63 +824,63 @@ with tab_battle:
                     col1, col2 = st.columns(2)
 
                     with col1:
-
                         st.metric(
-                            f"Dégâts totaux - "
+                            "Dégâts totaux - "
                             f"{pokemon1.name.capitalize()}",
-                            result["total_damage_1"],
+                            result[
+                                "total_damage_1"
+                            ],
                         )
 
                     with col2:
-
                         st.metric(
-                            f"Dégâts totaux - "
+                            "Dégâts totaux - "
                             f"{pokemon2.name.capitalize()}",
-                            result["total_damage_2"],
+                            result[
+                                "total_damage_2"
+                            ],
                         )
 
-                    st.divider()
-
-                    if result["winner"] == "Égalité":
-
+                    if (
+                        result["winner"]
+                        == "Égalité"
+                    ):
                         st.warning(
                             "🤝 Le combat se termine "
                             "sur une égalité."
                         )
 
                     else:
-
                         st.success(
-                            f"🏆 Gagnant : "
+                            "🏆 Gagnant : "
                             f"{result['winner'].capitalize()}"
                         )
 
                     st.caption(
-                        "Règle du projet : dégâts = "
-                        "max(1, attaque - défense_adverse // 2). "
-                        "Le Pokémon ayant infligé le plus de "
-                        "dégâts cumulés après cinq tours gagne."
+                        "Règle du mini-projet : "
+                        "dégâts = max(1, attaque - "
+                        "défense adverse // 2)."
                     )
 
             except APIError as error:
-
                 st.error(
                     f"Erreur API : {error}"
                 )
 
             except ValueError as error:
-
-                st.warning(str(error))
+                st.warning(
+                    str(error)
+                )
 
             except Exception as error:
-
                 st.error(
-                    f"Une erreur inattendue est survenue : {error}"
+                    "Une erreur inattendue est survenue : "
+                    f"{error}"
                 )
 
 
 # ============================================================
-# FOOTER
+# PIED DE PAGE
 # ============================================================
 
 st.divider()
