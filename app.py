@@ -3,6 +3,12 @@ import time
 
 import streamlit as st
 
+from load_testing.load_test import (
+    DEFAULT_BASE_URL,
+    check_mock_api,
+    reset_mock_api,
+    run_load_test,
+)
 from services.async_type_service import (
     calculate_type_statistics_async,
 )
@@ -15,9 +21,7 @@ from services.cache_service import (
 from services.comparison_service import (
     compare_pokemon,
 )
-from services.exceptions import (
-    APIError,
-)
+from services.exceptions import APIError
 from services.pokemon_service import (
     get_pokemon,
 )
@@ -26,31 +30,21 @@ from services.type_service import (
 )
 
 
-# ============================================================
-# CONFIGURATION
-# ============================================================
-
 st.set_page_config(
     page_title="Pokémon Analyzer",
     page_icon="⚡",
     layout="wide",
 )
 
-st.title(
-    "⚡ Pokémon Analyzer"
-)
+st.title("⚡ Pokémon Analyzer")
 
 st.write(
-    "Recherchez, comparez et analysez "
-    "les Pokémon grâce à PokéAPI."
+    "Recherchez, comparez et analysez les Pokémon, "
+    "simulez des combats et testez la montée en charge."
 )
 
 st.divider()
 
-
-# ============================================================
-# ONGLETS
-# ============================================================
 
 (
     tab_search,
@@ -58,6 +52,7 @@ st.divider()
     tab_type,
     tab_battle,
     tab_cache,
+    tab_load,
 ) = st.tabs(
     [
         "🔎 Recherche",
@@ -65,6 +60,7 @@ st.divider()
         "📊 Analyse par type",
         "⚔️ Combat",
         "🗄️ Cache",
+        "🚀 Test de charge",
     ]
 )
 
@@ -80,7 +76,7 @@ with tab_search:
 
     identifier = st.text_input(
         "Nom ou ID du Pokémon",
-        placeholder="Exemple : pikachu ou 25",
+        placeholder="pikachu ou 25",
         key="search_pokemon",
     )
 
@@ -137,34 +133,34 @@ with tab_search:
 
                     with col1:
                         st.metric(
-                            "❤️ HP",
+                            "HP",
                             pokemon.hp,
                         )
 
                         st.metric(
-                            "✨ Attaque spéciale",
+                            "Attaque spéciale",
                             pokemon.special_attack,
                         )
 
                     with col2:
                         st.metric(
-                            "⚔️ Attaque",
+                            "Attaque",
                             pokemon.attack,
                         )
 
                         st.metric(
-                            "🔰 Défense spéciale",
+                            "Défense spéciale",
                             pokemon.special_defense,
                         )
 
                     with col3:
                         st.metric(
-                            "🛡️ Défense",
+                            "Défense",
                             pokemon.defense,
                         )
 
                         st.metric(
-                            "💨 Vitesse",
+                            "Vitesse",
                             pokemon.speed,
                         )
 
@@ -175,8 +171,7 @@ with tab_search:
 
             except Exception as error:
                 st.error(
-                    "Erreur inattendue : "
-                    f"{error}"
+                    f"Erreur inattendue : {error}"
                 )
 
 
@@ -186,7 +181,7 @@ with tab_search:
 
 with tab_compare:
     st.header(
-        "⚖️ Comparer deux Pokémon"
+        "⚖️ Comparaison"
     )
 
     col1, col2 = st.columns(2)
@@ -317,6 +312,11 @@ with tab_compare:
                         f"{result['strongest']}"
                     )
 
+                    st.caption(
+                        "Le score HP + attaque est une règle "
+                        "définie pour ce mini-projet."
+                    )
+
             except APIError as error:
                 st.error(
                     f"Erreur API : {error}"
@@ -324,8 +324,7 @@ with tab_compare:
 
             except Exception as error:
                 st.error(
-                    "Erreur inattendue : "
-                    f"{error}"
+                    f"Erreur inattendue : {error}"
                 )
 
 
@@ -363,6 +362,7 @@ with tab_type:
         selected_limit = int(
             limit_value
         )
+
     else:
         selected_limit = None
 
@@ -376,19 +376,20 @@ with tab_type:
         key="type_execution_mode",
     )
 
-    concurrency_limit = st.slider(
+    type_concurrency = st.slider(
         "Requêtes simultanées",
         min_value=1,
         max_value=20,
         value=5,
+        step=1,
         disabled=(
             execution_mode
             == "Séquentiel"
         ),
-        key="concurrency_limit",
+        key="type_concurrency",
     )
 
-    use_cache = st.checkbox(
+    use_analysis_cache = st.checkbox(
         "Utiliser le cache",
         value=True,
         key="analysis_cache",
@@ -415,21 +416,33 @@ with tab_type:
                     ):
                         result = (
                             calculate_type_statistics(
-                                type_identifier=type_name,
-                                limit=selected_limit,
-                                use_cache=use_cache,
+                                type_identifier=(
+                                    type_name
+                                ),
+                                limit=(
+                                    selected_limit
+                                ),
+                                use_cache=(
+                                    use_analysis_cache
+                                ),
                             )
                         )
 
                     else:
                         result = asyncio.run(
                             calculate_type_statistics_async(
-                                type_identifier=type_name,
-                                limit=selected_limit,
-                                concurrency_limit=int(
-                                    concurrency_limit
+                                type_identifier=(
+                                    type_name
                                 ),
-                                use_cache=use_cache,
+                                limit=(
+                                    selected_limit
+                                ),
+                                concurrency_limit=int(
+                                    type_concurrency
+                                ),
+                                use_cache=(
+                                    use_analysis_cache
+                                ),
                             )
                         )
 
@@ -485,7 +498,7 @@ with tab_type:
 
                     with col4:
                         st.metric(
-                            "Réussites",
+                            "Succès",
                             result[
                                 "successful_count"
                             ],
@@ -510,7 +523,7 @@ with tab_type:
                     st.divider()
 
                     st.subheader(
-                        "Cache pendant cette analyse"
+                        "Cache de cette analyse"
                     )
 
                     cache_col1, cache_col2 = (
@@ -533,16 +546,18 @@ with tab_type:
                             ],
                         )
 
-                    st.write(
-                        "**Cache activé :**",
-                        (
-                            "Oui"
-                            if result[
-                                "cache_enabled"
-                            ]
-                            else "Non"
-                        ),
-                    )
+                    if result[
+                        "failed_names"
+                    ]:
+                        with st.expander(
+                            "Pokémon non récupérés"
+                        ):
+                            for name in result[
+                                "failed_names"
+                            ]:
+                                st.write(
+                                    f"- {name}"
+                                )
 
             except APIError as error:
                 st.error(
@@ -556,8 +571,7 @@ with tab_type:
 
             except Exception as error:
                 st.error(
-                    "Erreur inattendue : "
-                    f"{error}"
+                    f"Erreur inattendue : {error}"
                 )
 
 
@@ -634,28 +648,35 @@ with tab_battle:
                         result["rounds"]
                     ):
                         with st.expander(
-                            "Tour "
+                            f"Tour "
                             f"{round_result['round']}"
                         ):
                             st.write(
-                                f"{pokemon1.name.capitalize()} : "
-                                f"{round_result['pokemon1_damage']} "
-                                "dégâts"
+                                f"{pokemon1.name.capitalize()} "
+                                f"inflige "
+                                f"**{round_result['pokemon1_damage']} "
+                                f"dégâts**."
                             )
 
                             st.write(
-                                f"{pokemon2.name.capitalize()} : "
-                                f"{round_result['pokemon2_damage']} "
-                                "dégâts"
+                                f"{pokemon2.name.capitalize()} "
+                                f"inflige "
+                                f"**{round_result['pokemon2_damage']} "
+                                f"dégâts**."
                             )
 
                     st.divider()
 
-                    col1, col2 = st.columns(2)
+                    col1, col2 = (
+                        st.columns(2)
+                    )
 
                     with col1:
                         st.metric(
-                            pokemon1.name.capitalize(),
+                            (
+                                "Dégâts totaux "
+                                f"{pokemon1.name.capitalize()}"
+                            ),
                             result[
                                 "total_damage_1"
                             ],
@@ -663,7 +684,10 @@ with tab_battle:
 
                     with col2:
                         st.metric(
-                            pokemon2.name.capitalize(),
+                            (
+                                "Dégâts totaux "
+                                f"{pokemon2.name.capitalize()}"
+                            ),
                             result[
                                 "total_damage_2"
                             ],
@@ -690,8 +714,7 @@ with tab_battle:
 
             except Exception as error:
                 st.error(
-                    "Erreur inattendue : "
-                    f"{error}"
+                    f"Erreur inattendue : {error}"
                 )
 
 
@@ -706,10 +729,10 @@ with tab_cache:
 
     st.write(
         "Le cache conserve les réponses pendant "
-        "1 heure afin d'éviter les appels API répétitifs."
+        "une heure."
     )
 
-    statistics = (
+    cache_statistics = (
         api_cache.get_statistics()
     )
 
@@ -719,79 +742,63 @@ with tab_cache:
 
     with col1:
         st.metric(
-            "Cache hits",
-            statistics["hits"],
+            "Hits",
+            cache_statistics["hits"],
         )
 
     with col2:
         st.metric(
-            "Cache misses",
-            statistics["misses"],
+            "Misses",
+            cache_statistics["misses"],
         )
 
     with col3:
         st.metric(
             "Entrées",
-            statistics["size"],
+            cache_statistics["size"],
         )
 
     with col4:
         st.metric(
             "Hit rate",
-            f"{statistics['hit_rate']:.1f} %",
+            (
+                f"{cache_statistics['hit_rate']:.1f} %"
+            ),
         )
 
     st.write(
         "**TTL :**",
-        statistics[
+        cache_statistics[
             "ttl_seconds"
         ],
         "secondes",
     )
 
-    st.write(
-        "**Taille maximale :**",
-        statistics[
-            "max_size"
-        ],
-        "entrées",
-    )
-
-    st.divider()
-
-    st.subheader(
-        "Démonstration du cache"
-    )
-
-    cache_demo_pokemon = (
-        st.text_input(
-            "Pokémon à utiliser pour la démonstration",
-            value="pikachu",
-            key="cache_demo_pokemon",
-        )
+    cache_demo_name = st.text_input(
+        "Pokémon de démonstration",
+        value="pikachu",
+        key="cache_demo",
     )
 
     if st.button(
         "Tester le cache",
-        key="test_cache_button",
+        key="cache_test_button",
     ):
-        if not cache_demo_pokemon.strip():
+        if not cache_demo_name.strip():
             st.warning(
                 "Veuillez saisir un Pokémon."
             )
 
         else:
             try:
-                # Nettoyage avant le test afin
-                # de garantir un premier MISS.
                 api_cache.clear()
 
                 start = (
                     time.perf_counter()
                 )
 
-                pokemon1 = get_pokemon(
-                    cache_demo_pokemon
+                first = get_pokemon(
+                    cache_demo_name
                 )
 
                 first_duration = (
@@ -799,7 +806,7 @@ with tab_cache:
                     - start
                 )
 
-                stats_after_first = (
+                first_stats = (
                     api_cache.get_statistics()
                 )
 
@@ -807,8 +814,8 @@ with tab_cache:
                     time.perf_counter()
                 )
 
-                pokemon2 = get_pokemon(
-                    cache_demo_pokemon
+                second = get_pokemon(
+                    cache_demo_name
                 )
 
                 second_duration = (
@@ -816,23 +823,19 @@ with tab_cache:
                     - start
                 )
 
-                stats_after_second = (
+                second_stats = (
                     api_cache.get_statistics()
                 )
 
                 if (
-                    pokemon1 is None
-                    or pokemon2 is None
+                    first is None
+                    or second is None
                 ):
                     st.error(
                         "Pokémon introuvable."
                     )
 
                 else:
-                    st.success(
-                        "Test terminé."
-                    )
-
                     col1, col2 = (
                         st.columns(2)
                     )
@@ -840,10 +843,6 @@ with tab_cache:
                     with col1:
                         st.subheader(
                             "Premier appel"
-                        )
-
-                        st.write(
-                            "**Source : API**"
                         )
 
                         st.write(
@@ -858,15 +857,8 @@ with tab_cache:
                         )
 
                         st.write(
-                            "Hits après appel :",
-                            stats_after_first[
-                                "hits"
-                            ],
-                        )
-
-                        st.write(
-                            "Misses après appel :",
-                            stats_after_first[
+                            "Misses :",
+                            first_stats[
                                 "misses"
                             ],
                         )
@@ -874,10 +866,6 @@ with tab_cache:
                     with col2:
                         st.subheader(
                             "Deuxième appel"
-                        )
-
-                        st.write(
-                            "**Source : cache**"
                         )
 
                         st.write(
@@ -892,16 +880,9 @@ with tab_cache:
                         )
 
                         st.write(
-                            "Hits après appel :",
-                            stats_after_second[
+                            "Hits :",
+                            second_stats[
                                 "hits"
-                            ],
-                        )
-
-                        st.write(
-                            "Misses après appel :",
-                            stats_after_second[
-                                "misses"
                             ],
                         )
 
@@ -912,8 +893,8 @@ with tab_cache:
                         )
 
                         st.info(
-                            "Facteur d'accélération "
-                            f"observé : {speedup:.2f}x"
+                            "Accélération observée : "
+                            f"{speedup:.2f}x"
                         )
 
             except APIError as error:
@@ -923,14 +904,11 @@ with tab_cache:
 
             except Exception as error:
                 st.error(
-                    "Erreur inattendue : "
-                    f"{error}"
+                    f"Erreur inattendue : {error}"
                 )
 
-    st.divider()
-
     if st.button(
-        "🗑️ Vider le cache",
+        "Vider le cache",
         key="clear_cache_button",
     ):
         api_cache.clear()
@@ -943,8 +921,297 @@ with tab_cache:
 
 
 # ============================================================
-# FOOTER
+# TEST DE CHARGE
 # ============================================================
+
+with tab_load:
+    st.header(
+        "🚀 Simulation de charge"
+    )
+
+    st.warning(
+        "Le test de charge doit cibler uniquement "
+        "l'API locale de simulation."
+    )
+
+    load_base_url = st.text_input(
+        "Adresse de l'API locale",
+        value=DEFAULT_BASE_URL,
+        key="load_base_url",
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        total_requests = st.number_input(
+            "Nombre total de requêtes",
+            min_value=1,
+            max_value=1_000_000,
+            value=1000,
+            step=100,
+            key="load_total",
+        )
+
+        batch_size = st.number_input(
+            "Taille des lots",
+            min_value=1,
+            max_value=10_000,
+            value=100,
+            step=10,
+            key="load_batch",
+        )
+
+    with col2:
+        load_concurrency = st.number_input(
+            "Concurrence maximale",
+            min_value=1,
+            max_value=500,
+            value=20,
+            step=1,
+            key="load_concurrency",
+        )
+
+        load_retries = st.number_input(
+            "Retries maximum",
+            min_value=0,
+            max_value=10,
+            value=2,
+            step=1,
+            key="load_retries",
+        )
+
+    st.caption(
+        "Les requêtes sont créées par lots afin "
+        "d'éviter de charger toutes les tâches "
+        "simultanément en mémoire."
+    )
+
+    if st.button(
+        "Vérifier le serveur local",
+        key="check_load_server",
+    ):
+        try:
+            available = asyncio.run(
+                check_mock_api(
+                    base_url=load_base_url
+                )
+            )
+
+            if available:
+                st.success(
+                    "Serveur local accessible."
+                )
+
+            else:
+                st.error(
+                    "Serveur local inaccessible."
+                )
+
+                st.code(
+                    "python -m uvicorn "
+                    "load_testing.mock_api:app "
+                    "--host 127.0.0.1 --port 8000",
+                    language="bash",
+                )
+
+        except Exception as error:
+            st.error(
+                f"Erreur : {error}"
+            )
+
+    if st.button(
+        "Lancer la simulation",
+        key="run_load_test",
+    ):
+        try:
+            available = asyncio.run(
+                check_mock_api(
+                    base_url=load_base_url
+                )
+            )
+
+            if not available:
+                st.error(
+                    "Le serveur local "
+                    "n'est pas accessible."
+                )
+
+            else:
+                asyncio.run(
+                    reset_mock_api(
+                        base_url=load_base_url
+                    )
+                )
+
+                with st.spinner(
+                    "Test de charge en cours...",
+                    show_time=True,
+                ):
+                    metrics = asyncio.run(
+                        run_load_test(
+                            total_requests=int(
+                                total_requests
+                            ),
+                            batch_size=int(
+                                batch_size
+                            ),
+                            concurrency_limit=int(
+                                load_concurrency
+                            ),
+                            max_retries=int(
+                                load_retries
+                            ),
+                            backoff_factor=0.05,
+                            base_url=(
+                                load_base_url
+                            ),
+                            request_timeout=10,
+                        )
+                    )
+
+                st.success(
+                    "Simulation terminée."
+                )
+
+                col1, col2, col3, col4 = (
+                    st.columns(4)
+                )
+
+                with col1:
+                    st.metric(
+                        "Demandées",
+                        metrics.total_requested,
+                    )
+
+                with col2:
+                    st.metric(
+                        "Succès",
+                        metrics.successful_requests,
+                    )
+
+                with col3:
+                    st.metric(
+                        "Échecs",
+                        metrics.failed_requests,
+                    )
+
+                with col4:
+                    st.metric(
+                        "Retries",
+                        metrics.total_retries,
+                    )
+
+                col5, col6, col7 = (
+                    st.columns(3)
+                )
+
+                with col5:
+                    st.metric(
+                        "Durée totale",
+                        (
+                            f"{metrics.duration_seconds:.2f} s"
+                        ),
+                    )
+
+                with col6:
+                    st.metric(
+                        "Débit",
+                        (
+                            f"{metrics.requests_per_second:.2f} req/s"
+                        ),
+                    )
+
+                with col7:
+                    st.metric(
+                        "Temps moyen",
+                        (
+                            f"{metrics.average_response_time_seconds:.4f} s"
+                        ),
+                    )
+
+                st.divider()
+
+                st.subheader(
+                    "Statuts HTTP rencontrés"
+                )
+
+                if metrics.status_counts:
+                    for (
+                        status_code,
+                        count,
+                    ) in sorted(
+                        metrics.status_counts.items()
+                    ):
+                        st.write(
+                            f"**HTTP {status_code} :** "
+                            f"{count}"
+                        )
+
+                else:
+                    st.write(
+                        "Aucun statut enregistré."
+                    )
+
+                st.divider()
+
+                st.subheader(
+                    "Résultats par route"
+                )
+
+                for route, count in (
+                    metrics.route_counts.items()
+                ):
+                    successes = (
+                        metrics.route_success_counts.get(
+                            route,
+                            0,
+                        )
+                    )
+
+                    failures = (
+                        metrics.route_failure_counts.get(
+                            route,
+                            0,
+                        )
+                    )
+
+                    st.write(
+                        f"**{route}**"
+                    )
+
+                    route_col1, route_col2, route_col3 = (
+                        st.columns(3)
+                    )
+
+                    with route_col1:
+                        st.metric(
+                            "Requêtes",
+                            count,
+                        )
+
+                    with route_col2:
+                        st.metric(
+                            "Succès",
+                            successes,
+                        )
+
+                    with route_col3:
+                        st.metric(
+                            "Échecs",
+                            failures,
+                        )
+
+        except ValueError as error:
+            st.warning(
+                str(error)
+            )
+
+        except Exception as error:
+            st.error(
+                "Erreur pendant le test de charge : "
+                f"{error}"
+            )
+
 
 st.divider()
 
