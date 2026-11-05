@@ -12,3 +12,6 @@ class Pokemon:
     special_defense: int
     speed: int
     types: list[str]
+
+    def strength_score(self):
+        return self.hp + self.attack
